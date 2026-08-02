@@ -64,12 +64,12 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 - [x] Verify passwords with BCrypt
 - [x] Implement login service logic
 - [x] Add login service unit tests
-- [ ] Add `POST /api/auth/login`
-- [ ] Permit the login endpoint in Spring Security
-- [ ] Return `401 Unauthorized` for invalid credentials
-- [ ] Add login controller tests
-- [ ] Add login request to `api-tests.http`
-- [ ] Verify login against the real MySQL database
+- [x] Add `POST /api/auth/login`
+- [x] Permit the login endpoint in Spring Security
+- [x] Return `401 Unauthorized` for invalid credentials
+- [x] Add login controller tests
+- [x] Add login request to `api-tests.http`
+- [x] Verify login against the real MySQL database
 
 ---
 
