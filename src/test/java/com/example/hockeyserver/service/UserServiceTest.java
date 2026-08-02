@@ -12,13 +12,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
+import com.example.hockeyserver.entity.Role;
+
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -73,8 +75,10 @@ class UserServiceTest {
         verify(passwordEncoder)
                 .encode("secret-password");
 
-        verify(userRepository)
-                .save(any(User.class));
+        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(userCaptor.capture());
+        User savedUser = userCaptor.getValue();
+        assertEquals(Role.USER, savedUser.getRole());
     }
 
     @Test
@@ -85,16 +89,11 @@ class UserServiceTest {
                 "secret-password"
         );
 
-        when(userRepository.existsByUsername("Daniel"))
-                .thenReturn(true);
+        when(userRepository.existsByUsername("Daniel")).thenReturn(true);
 
-        assertThrows(
-                UsernameAlreadyExistsException.class,
-                () -> userService.register(request)
-        );
+        assertThrows(UsernameAlreadyExistsException.class, () -> userService.register(request));
 
-        verify(userRepository, never())
-                .save(any(User.class));
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -105,18 +104,11 @@ class UserServiceTest {
                 "secret-password"
         );
 
-        when(userRepository.existsByUsername("Daniel"))
-                .thenReturn(false);
-
-        when(userRepository.existsByEmail("daniel@example.com"))
-                .thenReturn(true);
-
-        assertThrows(
-                EmailAlreadyExistsException.class,
-                () -> userService.register(request)
-        );
-
-        verify(userRepository, never())
-                .save(any(User.class));
+        when(userRepository.existsByUsername("Daniel")).thenReturn(false);
+        when(userRepository.existsByEmail("daniel@example.com")).thenReturn(true);
+        assertThrows(EmailAlreadyExistsException.class, () -> userService.register(request));
+        verify(userRepository, never()).save(any(User.class));
     }
+
+
 }

@@ -8,6 +8,7 @@ import com.example.hockeyserver.exception.UsernameAlreadyExistsException;
 import com.example.hockeyserver.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.example.hockeyserver.entity.Role;
 
 @Service
 public class UserService {
@@ -53,8 +54,9 @@ public class UserService {
                 passwordHash
         );
 
-        User savedUser =
-                userRepository.save(user);
+        user.setRole(Role.USER);
+
+        User savedUser = userRepository.save(user);
 
         return new RegisterResponse(
                 savedUser.getId(),

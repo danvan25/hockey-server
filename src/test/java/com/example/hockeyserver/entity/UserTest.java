@@ -60,4 +60,20 @@ class UserTest {
 
         assertEquals(3, user.getWins());
     }
+
+    @Test
+    void roleShouldBeSetToUser() {
+        User user = new User(
+                "Daniel",
+                "daniel@example.com",
+                "hashed-password"
+        );
+
+        user.setRole(Role.USER);
+
+        assertEquals(
+                Role.USER,
+                user.getRole()
+        );
+    }
 }
