@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.example.hockeyserver.dto.LoginRequest;
+import com.example.hockeyserver.dto.LoginResponse;
+
 
 @RestController
 @RequestMapping("/api/auth")
@@ -31,5 +34,14 @@ public class AuthController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(
+            @Valid @RequestBody LoginRequest request
+    ) {
+        LoginResponse response = userService.login(request);
+
+        return ResponseEntity.ok(response);
     }
 }

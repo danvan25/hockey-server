@@ -22,7 +22,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.example.hockeyserver.exception.EmailAlreadyExistsException;
 import com.example.hockeyserver.exception.GlobalExceptionHandler;
 import com.example.hockeyserver.exception.UsernameAlreadyExistsException;
-
+import com.example.hockeyserver.dto.LoginRequest;
+import com.example.hockeyserver.dto.LoginResponse;
+import com.example.hockeyserver.entity.Role;
 
 @WebMvcTest(AuthController.class)
 @Import({SecurityConfig.class,
@@ -226,5 +228,42 @@ class AuthControllerTest {
                         .value("/api/auth/register"));
     }
 
+    @Test
+    void loginShouldReturnLoggedInUser() throws Exception {
+        LoginRequest request = new LoginRequest(
+                "Daniel",
+                "secret-password"
+        );
 
+        LoginResponse response = new LoginResponse(
+                1L,
+                "Daniel",
+                "daniel@example.com",
+                Role.USER
+        );
+
+        when(userService.login(any(LoginRequest.class)))
+                .thenReturn(response);
+
+        mockMvc.perform(
+                        post("/api/auth/login")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        objectMapper.writeValueAsString(
+                                                request
+                                        )
+                                )
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.username")
+                        .value("Daniel"))
+                .andExpect(jsonPath("$.email")
+                        .value("daniel@example.com"))
+                .andExpect(jsonPath("$.role")
+                        .value("USER"));
+
+        verify(userService)
+                .login(any(LoginRequest.class));
+    }
 }
