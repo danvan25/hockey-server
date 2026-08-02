@@ -19,9 +19,14 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.example.hockeyserver.exception.EmailAlreadyExistsException;
+import com.example.hockeyserver.exception.GlobalExceptionHandler;
+import com.example.hockeyserver.exception.UsernameAlreadyExistsException;
+
 
 @WebMvcTest(AuthController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class,
+        GlobalExceptionHandler.class})
 class AuthControllerTest {
 
     @Autowired
@@ -87,7 +92,14 @@ class AuthControllerTest {
                                         )
                                 )
                 )
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error")
+                        .value("Bad Request"))
+                .andExpect(jsonPath("$.message")
+                        .value("Request validation failed"))
+                .andExpect(jsonPath("$.validationErrors.email")
+                        .value("Email address is invalid"));
 
         verify(userService, never())
                 .register(any(RegisterRequest.class));
@@ -138,4 +150,81 @@ class AuthControllerTest {
         verify(userService, never())
                 .register(any(RegisterRequest.class));
     }
+
+    @Test
+    void registerShouldReturnConflictForExistingUsername()
+            throws Exception {
+
+        RegisterRequest request = new RegisterRequest(
+                "Daniel",
+                "daniel@example.com",
+                "secret-password"
+        );
+
+        when(userService.register(any(RegisterRequest.class)))
+                .thenThrow(
+                        new UsernameAlreadyExistsException("Daniel")
+                );
+
+        mockMvc.perform(
+                        post("/api/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        objectMapper.writeValueAsString(
+                                                request
+                                        )
+                                )
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error")
+                        .value("Conflict"))
+                .andExpect(jsonPath("$.message")
+                        .value(
+                                "Username is already in use: Daniel"
+                        ))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/auth/register"));
+    }
+
+    @Test
+    void registerShouldReturnConflictForExistingEmail()
+            throws Exception {
+
+        RegisterRequest request = new RegisterRequest(
+                "Daniel",
+                "daniel@example.com",
+                "secret-password"
+        );
+
+        when(userService.register(any(RegisterRequest.class)))
+                .thenThrow(
+                        new EmailAlreadyExistsException(
+                                "daniel@example.com"
+                        )
+                );
+
+        mockMvc.perform(
+                        post("/api/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        objectMapper.writeValueAsString(
+                                                request
+                                        )
+                                )
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error")
+                        .value("Conflict"))
+                .andExpect(jsonPath("$.message")
+                        .value(
+                                "Email address is already in use: "
+                                        + "daniel@example.com"
+                        ))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/auth/register"));
+    }
+
+
 }
