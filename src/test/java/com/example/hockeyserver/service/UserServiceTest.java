@@ -19,8 +19,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.ArgumentCaptor;
+import com.example.hockeyserver.dto.LoginRequest;
+import com.example.hockeyserver.dto.LoginResponse;
 import com.example.hockeyserver.entity.Role;
+import com.example.hockeyserver.exception.InvalidCredentialsException;
 
+import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -110,5 +114,103 @@ class UserServiceTest {
         verify(userRepository, never()).save(any(User.class));
     }
 
+    @Test
+    void loginShouldReturnUserForValidCredentials() {
+        LoginRequest request = new LoginRequest(
+                "Daniel",
+                "secret-password"
+        );
 
+        User user = new User(
+                "Daniel",
+                "daniel@example.com",
+                "encoded-password"
+        );
+
+        user.setRole(Role.USER);
+
+        when(userRepository.findByUsername("Daniel"))
+                .thenReturn(Optional.of(user));
+
+        when(passwordEncoder.matches(
+                "secret-password",
+                "encoded-password"
+        )).thenReturn(true);
+
+        LoginResponse response =
+                userService.login(request);
+
+        assertEquals("Daniel", response.getUsername());
+        assertEquals(
+                "daniel@example.com",
+                response.getEmail()
+        );
+        assertEquals(Role.USER, response.getRole());
+
+        verify(userRepository)
+                .findByUsername("Daniel");
+
+        verify(passwordEncoder)
+                .matches(
+                        "secret-password",
+                        "encoded-password"
+                );
+    }
+
+    @Test
+    void loginShouldRejectUnknownUsername() {
+        LoginRequest request = new LoginRequest(
+                "UnknownPlayer",
+                "secret-password"
+        );
+
+        when(userRepository.findByUsername("UnknownPlayer"))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                InvalidCredentialsException.class,
+                () -> userService.login(request)
+        );
+
+        verify(userRepository)
+                .findByUsername("UnknownPlayer");
+
+        verify(passwordEncoder, never())
+                .matches(any(), any());
+    }
+
+    @Test
+    void loginShouldRejectInvalidPassword() {
+        LoginRequest request = new LoginRequest(
+                "Daniel",
+                "wrong-password"
+        );
+
+        User user = new User(
+                "Daniel",
+                "daniel@example.com",
+                "encoded-password"
+        );
+
+        user.setRole(Role.USER);
+
+        when(userRepository.findByUsername("Daniel"))
+                .thenReturn(Optional.of(user));
+
+        when(passwordEncoder.matches(
+                "wrong-password",
+                "encoded-password"
+        )).thenReturn(false);
+
+        assertThrows(
+                InvalidCredentialsException.class,
+                () -> userService.login(request)
+        );
+
+        verify(passwordEncoder)
+                .matches(
+                        "wrong-password",
+                        "encoded-password"
+                );
+    }
 }

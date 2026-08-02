@@ -9,6 +9,9 @@ import com.example.hockeyserver.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import com.example.hockeyserver.entity.Role;
+import com.example.hockeyserver.dto.LoginResponse;
+import com.example.hockeyserver.dto.LoginRequest;
+import com.example.hockeyserver.exception.InvalidCredentialsException;
 
 @Service
 public class UserService {
@@ -62,6 +65,31 @@ public class UserService {
                 savedUser.getId(),
                 savedUser.getUsername(),
                 savedUser.getEmail()
+        );
+    }
+
+    public LoginResponse login(LoginRequest request) {
+        String username = request.getUsername().trim();
+
+        User user = userRepository
+                .findByUsername(username)
+                .orElseThrow(InvalidCredentialsException::new);
+
+        boolean passwordMatches =
+                passwordEncoder.matches(
+                        request.getPassword(),
+                        user.getPasswordHash()
+                );
+
+        if (!passwordMatches) {
+            throw new InvalidCredentialsException();
+        }
+
+        return new LoginResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getRole()
         );
     }
 }
