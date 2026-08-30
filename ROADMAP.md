@@ -55,7 +55,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## 🚧 Milestone 4 — Login
+## ✅ Milestone 4 — Login
 
 - [x] Create login request DTO
 - [x] Create login response DTO
@@ -73,7 +73,41 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 5 — JWT Authentication
+## Next Implementation Order
+
+The immediate development sequence agreed for the Android client and backend is:
+
+1. Connect the Android registration screen to `POST /api/auth/register`.
+2. Add Android request and response DTOs plus Retrofit registration support.
+3. Display backend validation and duplicate-account errors in the Android client.
+4. Add JWT generation and validation to the backend.
+5. Store and attach the JWT securely in the Android client.
+6. Implement authenticated profile and statistics features.
+7. Build the server-backed lobby system.
+8. Add authenticated real-time multiplayer communication.
+
+---
+
+## 🚧 Milestone 5 — Android Registration Integration
+
+- [x] Configure LAN access for the Spring Boot server
+- [x] Add Android network permission
+- [x] Configure development HTTP access
+- [x] Add Retrofit and Gson
+- [x] Connect the Android login screen to the API
+- [x] Handle login failures and connection errors
+- [ ] Create Android registration request and response DTOs
+- [ ] Add the registration method to the Retrofit API
+- [ ] Connect the Android registration screen to the API
+- [ ] Display backend validation errors
+- [ ] Display duplicate username and email errors
+- [ ] Return to login after successful registration
+- [ ] Move the development server URL out of the Retrofit client source
+- [ ] Add meaningful Android authentication tests
+
+---
+
+## ⬜ Milestone 6 — JWT Authentication
 
 - [ ] Generate JWT tokens after successful login
 - [ ] Include user identity and role in the token
@@ -88,21 +122,19 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 6 — Android Client Integration
+## ⬜ Milestone 7 — Android JWT Integration
 
-- [ ] Configure LAN access for the Spring Boot server
-- [ ] Add Android network permission
-- [ ] Configure development HTTP access
-- [ ] Connect the Android registration screen to the API
-- [ ] Connect the Android login screen to the API
-- [ ] Display validation and authentication errors
+- [ ] Accept the JWT returned by login
 - [ ] Store the JWT securely on the Android device
 - [ ] Add the JWT to protected requests
+- [ ] Restore authenticated state when the application restarts
+- [ ] Clear authentication state during logout
+- [ ] Handle missing and expired tokens
 - [ ] Handle connection failures and timeouts
 
 ---
 
-## ⬜ Milestone 7 — User Profile and Statistics
+## ⬜ Milestone 8 — User Profile and Statistics
 
 - [ ] Create `GET /api/users/me`
 - [ ] Return authenticated user data
@@ -117,7 +149,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 8 — Friends System
+## ⬜ Milestone 9 — Friends System
 
 - [ ] Search users by username
 - [ ] Send friend requests
@@ -131,7 +163,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 9 — Lobby System
+## ⬜ Milestone 10 — Lobby System
 
 - [ ] Create a game lobby
 - [ ] Generate a unique room code
@@ -145,7 +177,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 10 — Real-Time Multiplayer
+## ⬜ Milestone 11 — Real-Time Multiplayer
 
 - [ ] Add Spring WebSocket support
 - [ ] Establish authenticated WebSocket connections
@@ -161,7 +193,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 11 — Match Persistence
+## ⬜ Milestone 12 — Match Persistence
 
 - [ ] Create match entity
 - [ ] Store participating players
@@ -174,7 +206,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 12 — Testing Improvements
+## ⬜ Milestone 13 — Testing Improvements
 
 - [x] Add entity unit tests
 - [x] Add service unit tests
@@ -190,7 +222,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 13 — Database Migrations
+## ⬜ Milestone 14 — Database Migrations
 
 - [ ] Replace Hibernate schema updates with controlled migrations
 - [ ] Add Flyway
@@ -202,7 +234,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 14 — API Documentation
+## ⬜ Milestone 15 — API Documentation
 
 - [ ] Add OpenAPI / Swagger
 - [ ] Document request and response DTOs
@@ -214,7 +246,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 15 — Security Hardening
+## ⬜ Milestone 16 — Security Hardening
 
 - [x] Avoid storing raw passwords
 - [x] Keep database credentials outside Git
@@ -230,7 +262,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 16 — Docker
+## ⬜ Milestone 17 — Docker
 
 - [ ] Create Spring Boot Dockerfile
 - [ ] Create MySQL container configuration
@@ -242,7 +274,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 17 — CI/CD
+## ⬜ Milestone 18 — CI/CD
 
 - [ ] Add GitHub Actions workflow
 - [ ] Build the project on every push
@@ -255,7 +287,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 18 — Monitoring and Logging
+## ⬜ Milestone 19 — Monitoring and Logging
 
 - [ ] Add Spring Boot Actuator
 - [ ] Add health and readiness endpoints
@@ -268,7 +300,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 19 — Linux Deployment
+## ⬜ Milestone 20 — Linux Deployment
 
 - [ ] Deploy the backend to AlmaLinux
 - [ ] Run the application as a dedicated system user
@@ -284,7 +316,7 @@ The project is developed incrementally. Each milestone is implemented, tested, d
 
 ---
 
-## ⬜ Milestone 20 — Production Readiness
+## ⬜ Milestone 21 — Production Readiness
 
 - [ ] Separate development and production profiles
 - [ ] Disable development SQL logging
@@ -322,6 +354,6 @@ These features are outside the initial scope but may be considered later:
 
 The current development goal is:
 
-> Complete the login REST endpoint, add structured authentication errors and verify login against the real MySQL database.
+> Connect the Android registration screen to the existing registration endpoint, including Retrofit DTOs and clear validation or duplicate-account errors.
 
-After that, development will continue with JWT authentication and Android client integration.
+After that, development will continue with backend JWT authentication, secure Android token handling, authenticated profile features, and the server-backed lobby system.
