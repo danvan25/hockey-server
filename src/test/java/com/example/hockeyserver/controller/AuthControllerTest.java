@@ -239,7 +239,9 @@ class AuthControllerTest {
                 1L,
                 "Daniel",
                 "daniel@example.com",
-                Role.USER
+                Role.USER,
+                "signed-jwt-token",
+                900L
         );
 
         when(userService.login(any(LoginRequest.class)))
@@ -261,7 +263,13 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.email")
                         .value("daniel@example.com"))
                 .andExpect(jsonPath("$.role")
-                        .value("USER"));
+                        .value("USER"))
+                .andExpect(jsonPath("$.accessToken")
+                        .value("signed-jwt-token"))
+                .andExpect(jsonPath("$.tokenType")
+                        .value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn")
+                        .value(900));
 
         verify(userService)
                 .login(any(LoginRequest.class));

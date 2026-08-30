@@ -23,6 +23,7 @@ import com.example.hockeyserver.dto.LoginRequest;
 import com.example.hockeyserver.dto.LoginResponse;
 import com.example.hockeyserver.entity.Role;
 import com.example.hockeyserver.exception.InvalidCredentialsException;
+import com.example.hockeyserver.security.JwtService;
 
 import java.util.Optional;
 
@@ -35,13 +36,17 @@ class UserServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private JwtService jwtService;
+
     private UserService userService;
 
     @BeforeEach
     void setUp() {
         userService = new UserService(
                 userRepository,
-                passwordEncoder
+                passwordEncoder,
+                jwtService
         );
     }
 
@@ -137,6 +142,12 @@ class UserServiceTest {
                 "encoded-password"
         )).thenReturn(true);
 
+        when(jwtService.generateToken(user))
+                .thenReturn("signed-jwt-token");
+
+        when(jwtService.getExpirationSeconds())
+                .thenReturn(900L);
+
         LoginResponse response =
                 userService.login(request);
 
@@ -146,6 +157,12 @@ class UserServiceTest {
                 response.getEmail()
         );
         assertEquals(Role.USER, response.getRole());
+        assertEquals(
+                "signed-jwt-token",
+                response.getAccessToken()
+        );
+        assertEquals("Bearer", response.getTokenType());
+        assertEquals(900L, response.getExpiresIn());
 
         verify(userRepository)
                 .findByUsername("Daniel");
@@ -155,6 +172,8 @@ class UserServiceTest {
                         "secret-password",
                         "encoded-password"
                 );
+
+        verify(jwtService).generateToken(user);
     }
 
     @Test

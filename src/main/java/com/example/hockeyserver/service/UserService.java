@@ -12,6 +12,7 @@ import com.example.hockeyserver.entity.Role;
 import com.example.hockeyserver.dto.LoginResponse;
 import com.example.hockeyserver.dto.LoginRequest;
 import com.example.hockeyserver.exception.InvalidCredentialsException;
+import com.example.hockeyserver.security.JwtService;
 
 @Service
 public class UserService {
@@ -27,13 +28,16 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
     public UserService(
             UserRepository userRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            JwtService jwtService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
 
     public RegisterResponse register(RegisterRequest request) {
@@ -85,11 +89,15 @@ public class UserService {
             throw new InvalidCredentialsException();
         }
 
+        String accessToken = jwtService.generateToken(user);
+
         return new LoginResponse(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
-                user.getRole()
+                user.getRole(),
+                accessToken,
+                jwtService.getExpirationSeconds()
         );
     }
 }
