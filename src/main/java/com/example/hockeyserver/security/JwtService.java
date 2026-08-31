@@ -1,6 +1,7 @@
 package com.example.hockeyserver.security;
 
 import com.example.hockeyserver.entity.User;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -38,6 +39,7 @@ public class JwtService {
                 .issuer(ISSUER)
                 .subject(user.getUsername())
                 .claim("userId", user.getId())
+                .claim("email", user.getEmail())
                 .claim("role", user.getRole().name())
                 .issuedAt(Date.from(issuedAt))
                 .expiration(Date.from(expiresAt))
@@ -45,7 +47,17 @@ public class JwtService {
                 .compact();
     }
 
+    public Claims parseToken(String token) {
+        return Jwts.parser()
+                .verifyWith(signingKey)
+                .requireIssuer(ISSUER)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
     public long getExpirationSeconds() {
         return expiration.toSeconds();
     }
 }
+

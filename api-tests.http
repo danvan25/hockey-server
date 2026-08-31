@@ -14,6 +14,7 @@ Content-Type: application/json
 }
 
 ### Login - successful
+# @name login
 POST http://localhost:8080/api/auth/login
 Content-Type: application/json
 
@@ -21,3 +22,17 @@ Content-Type: application/json
   "username": "Daniel",
   "password": "Titkos123!"
 }
+
+> {%
+    client.global.set(
+        "accessToken",
+        response.body.accessToken
+    );
+%}
+
+### Current authenticated user
+GET http://localhost:8080/api/users/me
+Authorization: Bearer {{accessToken}}
+
+### Current user without token - expected 401
+GET http://localhost:8080/api/users/me

@@ -25,10 +25,17 @@ import com.example.hockeyserver.exception.UsernameAlreadyExistsException;
 import com.example.hockeyserver.dto.LoginRequest;
 import com.example.hockeyserver.dto.LoginResponse;
 import com.example.hockeyserver.entity.Role;
+import com.example.hockeyserver.security.JwtAuthenticationEntryPoint;
+import com.example.hockeyserver.security.JwtAuthenticationFilter;
+import com.example.hockeyserver.security.JwtService;
 
 @WebMvcTest(AuthController.class)
-@Import({SecurityConfig.class,
-        GlobalExceptionHandler.class})
+@Import({
+        SecurityConfig.class,
+        GlobalExceptionHandler.class,
+        JwtAuthenticationFilter.class,
+        JwtAuthenticationEntryPoint.class
+})
 class AuthControllerTest {
 
     @Autowired
@@ -39,6 +46,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private UserService userService;
+
+    @MockitoBean
+    private JwtService jwtService;
 
     @Test
     void registerShouldReturnCreatedUser() throws Exception {
