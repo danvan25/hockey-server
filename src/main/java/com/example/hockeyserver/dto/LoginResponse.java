@@ -9,8 +9,10 @@ public class LoginResponse {
     private final String email;
     private final Role role;
     private final String accessToken;
+    private final String refreshToken;
     private final String tokenType;
     private final long expiresIn;
+    private final long refreshExpiresIn;
 
     public LoginResponse(
             Long id,
@@ -18,15 +20,19 @@ public class LoginResponse {
             String email,
             Role role,
             String accessToken,
-            long expiresIn
+            String refreshToken,
+            long expiresIn,
+            long refreshExpiresIn
     ) {
         this.id = id;
         this.username = username;
         this.email = email;
         this.role = role;
         this.accessToken = accessToken;
+        this.refreshToken = refreshToken;
         this.tokenType = "Bearer";
         this.expiresIn = expiresIn;
+        this.refreshExpiresIn = refreshExpiresIn;
     }
 
     public Long getId() {
@@ -49,6 +55,8 @@ public class LoginResponse {
         return accessToken;
     }
 
+    public String getRefreshToken() { return refreshToken; }
+
     public String getTokenType() {
         return tokenType;
     }
@@ -56,4 +64,6 @@ public class LoginResponse {
     public long getExpiresIn() {
         return expiresIn;
     }
+
+    public long getRefreshExpiresIn() { return refreshExpiresIn; }
 }

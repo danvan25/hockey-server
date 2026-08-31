@@ -39,6 +39,9 @@ class UserServiceTest {
     @Mock
     private JwtService jwtService;
 
+    @Mock
+    private RefreshTokenService refreshTokenService;
+
     private UserService userService;
 
     @BeforeEach
@@ -46,7 +49,8 @@ class UserServiceTest {
         userService = new UserService(
                 userRepository,
                 passwordEncoder,
-                jwtService
+                jwtService,
+                refreshTokenService
         );
     }
 
@@ -148,6 +152,12 @@ class UserServiceTest {
         when(jwtService.getExpirationSeconds())
                 .thenReturn(900L);
 
+        when(refreshTokenService.issue(user))
+                .thenReturn("refresh-token");
+
+        when(refreshTokenService.getExpirationSeconds())
+                .thenReturn(2592000L);
+
         LoginResponse response =
                 userService.login(request);
 
@@ -163,6 +173,8 @@ class UserServiceTest {
         );
         assertEquals("Bearer", response.getTokenType());
         assertEquals(900L, response.getExpiresIn());
+        assertEquals("refresh-token", response.getRefreshToken());
+        assertEquals(2592000L, response.getRefreshExpiresIn());
 
         verify(userRepository)
                 .findByUsername("Daniel");

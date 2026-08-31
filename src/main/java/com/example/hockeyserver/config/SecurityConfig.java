@@ -40,7 +40,9 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/health",
                                 "/api/auth/register",
-                                "/api/auth/login"
+                                "/api/auth/login",
+                                "/api/auth/refresh",
+                                "/api/auth/logout"
                         )
                         .permitAll()
                         .requestMatchers("/api/users/me")
@@ -61,4 +63,3 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 }
-

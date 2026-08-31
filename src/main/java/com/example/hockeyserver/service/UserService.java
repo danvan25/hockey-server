@@ -29,15 +29,18 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
 
     public UserService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService
+            JwtService jwtService,
+            RefreshTokenService refreshTokenService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     public RegisterResponse register(RegisterRequest request) {
@@ -90,6 +93,7 @@ public class UserService {
         }
 
         String accessToken = jwtService.generateToken(user);
+        String refreshToken = refreshTokenService.issue(user);
 
         return new LoginResponse(
                 user.getId(),
@@ -97,7 +101,9 @@ public class UserService {
                 user.getEmail(),
                 user.getRole(),
                 accessToken,
-                jwtService.getExpirationSeconds()
+                refreshToken,
+                jwtService.getExpirationSeconds(),
+                refreshTokenService.getExpirationSeconds()
         );
     }
 }

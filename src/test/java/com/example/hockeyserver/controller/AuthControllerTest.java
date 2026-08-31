@@ -28,6 +28,10 @@ import com.example.hockeyserver.entity.Role;
 import com.example.hockeyserver.security.JwtAuthenticationEntryPoint;
 import com.example.hockeyserver.security.JwtAuthenticationFilter;
 import com.example.hockeyserver.security.JwtService;
+import com.example.hockeyserver.service.RefreshTokenService;
+import com.example.hockeyserver.dto.RefreshTokenRequest;
+import com.example.hockeyserver.dto.TokenResponse;
+import com.example.hockeyserver.exception.InvalidRefreshTokenException;
 
 @WebMvcTest(AuthController.class)
 @Import({
@@ -49,6 +53,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private JwtService jwtService;
+
+    @MockitoBean
+    private RefreshTokenService refreshTokenService;
 
     @Test
     void registerShouldReturnCreatedUser() throws Exception {
@@ -251,7 +258,9 @@ class AuthControllerTest {
                 "daniel@example.com",
                 Role.USER,
                 "signed-jwt-token",
-                900L
+                "refresh-token",
+                900L,
+                2592000L
         );
 
         when(userService.login(any(LoginRequest.class)))
@@ -279,9 +288,74 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.tokenType")
                         .value("Bearer"))
                 .andExpect(jsonPath("$.expiresIn")
-                        .value(900));
+                        .value(900))
+                .andExpect(jsonPath("$.refreshToken")
+                        .value("refresh-token"))
+                .andExpect(jsonPath("$.refreshExpiresIn")
+                        .value(2592000));
 
         verify(userService)
                 .login(any(LoginRequest.class));
+    }
+
+    @Test
+    void refreshShouldReturnRotatedTokenPair() throws Exception {
+        RefreshTokenRequest request =
+                new RefreshTokenRequest("old-refresh-token");
+        TokenResponse response = new TokenResponse(
+                "new-access-token",
+                "new-refresh-token",
+                900L,
+                2592000L
+        );
+
+        when(refreshTokenService.rotate("old-refresh-token"))
+                .thenReturn(response);
+
+        mockMvc.perform(
+                        post("/api/auth/refresh")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken")
+                        .value("new-access-token"))
+                .andExpect(jsonPath("$.refreshToken")
+                        .value("new-refresh-token"))
+                .andExpect(jsonPath("$.tokenType").value("Bearer"));
+    }
+
+    @Test
+    void refreshShouldRejectInvalidToken() throws Exception {
+        RefreshTokenRequest request =
+                new RefreshTokenRequest("invalid-refresh-token");
+
+        when(refreshTokenService.rotate("invalid-refresh-token"))
+                .thenThrow(new InvalidRefreshTokenException());
+
+        mockMvc.perform(
+                        post("/api/auth/refresh")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.path")
+                        .value("/api/auth/refresh"));
+    }
+
+    @Test
+    void logoutShouldRevokeRefreshToken() throws Exception {
+        RefreshTokenRequest request =
+                new RefreshTokenRequest("refresh-token");
+
+        mockMvc.perform(
+                        post("/api/auth/logout")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                )
+                .andExpect(status().isNoContent());
+
+        verify(refreshTokenService).revoke("refresh-token");
     }
 }

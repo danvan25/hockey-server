@@ -15,6 +15,7 @@ Content-Type: application/json
 
 ### Login - successful
 # @name login
+
 POST http://localhost:8080/api/auth/login
 Content-Type: application/json
 
@@ -24,15 +25,204 @@ Content-Type: application/json
 }
 
 > {%
+    client.test("Login returns 200", function () {
+        client.assert(
+            response.status === 200,
+            "Expected 200, received " + response.status
+        );
+    });
+
+    client.test("Login returns both tokens", function () {
+        client.assert(
+            response.body.accessToken,
+            "Access token is missing"
+        );
+        client.assert(
+            response.body.refreshToken,
+            "Refresh token is missing"
+        );
+    });
+
     client.global.set(
         "accessToken",
         response.body.accessToken
     );
+
+    client.global.set(
+        "originalRefreshToken",
+        response.body.refreshToken
+    );
+
+    client.global.set(
+        "currentRefreshToken",
+        response.body.refreshToken
+    );
 %}
 
-### Current authenticated user
+### Current authenticated user - expected 200
+
 GET http://localhost:8080/api/users/me
 Authorization: Bearer {{accessToken}}
 
+> {%
+    client.test("Authenticated request returns 200", function () {
+        client.assert(
+            response.status === 200,
+            "Expected 200, received " + response.status
+        );
+    });
+%}
+
 ### Current user without token - expected 401
+
 GET http://localhost:8080/api/users/me
+
+> {%
+    client.test("Request without token returns 401", function () {
+        client.assert(
+            response.status === 401,
+            "Expected 401, received " + response.status
+        );
+    });
+%}
+
+### Rotate refresh token - expected 200
+# @name firstRefresh
+
+POST http://localhost:8080/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{currentRefreshToken}}"
+}
+
+> {%
+    client.test("Refresh returns 200", function () {
+        client.assert(
+            response.status === 200,
+            "Expected 200, received " + response.status
+        );
+    });
+
+    client.test("Refresh returns a new token pair", function () {
+        client.assert(
+            response.body.accessToken,
+            "New access token is missing"
+        );
+        client.assert(
+            response.body.refreshToken,
+            "New refresh token is missing"
+        );
+        client.assert(
+            response.body.refreshToken !==
+            client.global.get("originalRefreshToken"),
+            "Refresh token was not rotated"
+        );
+    });
+
+    client.global.set(
+        "accessToken",
+        response.body.accessToken
+    );
+
+    client.global.set(
+        "currentRefreshToken",
+        response.body.refreshToken
+    );
+%}
+
+### Reuse original refresh token - expected 401
+
+POST http://localhost:8080/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{originalRefreshToken}}"
+}
+
+> {%
+    client.test("Reused refresh token returns 401", function () {
+        client.assert(
+            response.status === 401,
+            "Expected 401, received " + response.status
+        );
+    });
+%}
+
+### Request with refreshed access token - expected 200
+
+GET http://localhost:8080/api/users/me
+Authorization: Bearer {{accessToken}}
+
+> {%
+    client.test("Refreshed access token works", function () {
+        client.assert(
+            response.status === 200,
+            "Expected 200, received " + response.status
+        );
+    });
+%}
+
+### Rotate the current refresh token again - expected 200
+
+POST http://localhost:8080/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{currentRefreshToken}}"
+}
+
+> {%
+    client.test("Current refresh token returns 200", function () {
+        client.assert(
+            response.status === 200,
+            "Expected 200, received " + response.status
+        );
+    });
+
+    client.global.set(
+        "accessToken",
+        response.body.accessToken
+    );
+
+    client.global.set(
+        "currentRefreshToken",
+        response.body.refreshToken
+    );
+%}
+
+### Logout - expected 204
+
+POST http://localhost:8080/api/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{currentRefreshToken}}"
+}
+
+> {%
+    client.test("Logout returns 204", function () {
+        client.assert(
+            response.status === 204,
+            "Expected 204, received " + response.status
+        );
+    });
+%}
+
+### Refresh after logout - expected 401
+
+POST http://localhost:8080/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{currentRefreshToken}}"
+}
+
+> {%
+    client.test("Logged-out refresh token returns 401", function () {
+        client.assert(
+            response.status === 401,
+            "Expected 401, received " + response.status
+        );
+    });
+%}
