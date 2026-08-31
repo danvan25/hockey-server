@@ -23,6 +23,7 @@ import com.example.hockeyserver.dto.LoginRequest;
 import com.example.hockeyserver.dto.LoginResponse;
 import com.example.hockeyserver.entity.Role;
 import com.example.hockeyserver.exception.InvalidCredentialsException;
+import com.example.hockeyserver.exception.UserNotFoundException;
 import com.example.hockeyserver.security.JwtService;
 
 import java.util.Optional;
@@ -243,5 +244,29 @@ class UserServiceTest {
                         "wrong-password",
                         "encoded-password"
                 );
+    }
+
+    @Test
+    void findByIdShouldReturnExistingUser() {
+        User user = new User(
+                "Daniel",
+                "daniel@example.com",
+                "encoded-password"
+        );
+        when(userRepository.findById(1L))
+                .thenReturn(Optional.of(user));
+
+        assertEquals(user, userService.findById(1L));
+    }
+
+    @Test
+    void findByIdShouldRejectUnknownUser() {
+        when(userRepository.findById(99L))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                UserNotFoundException.class,
+                () -> userService.findById(99L)
+        );
     }
 }

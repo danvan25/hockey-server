@@ -12,6 +12,7 @@ import com.example.hockeyserver.entity.Role;
 import com.example.hockeyserver.dto.LoginResponse;
 import com.example.hockeyserver.dto.LoginRequest;
 import com.example.hockeyserver.exception.InvalidCredentialsException;
+import com.example.hockeyserver.exception.UserNotFoundException;
 import com.example.hockeyserver.security.JwtService;
 
 @Service
@@ -105,5 +106,10 @@ public class UserService {
                 jwtService.getExpirationSeconds(),
                 refreshTokenService.getExpirationSeconds()
         );
+    }
+
+    public User findById(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(UserNotFoundException::new);
     }
 }
