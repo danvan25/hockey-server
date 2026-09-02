@@ -78,6 +78,42 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(LobbyNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleLobbyNotFound(
+            LobbyNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage(),
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(LobbyConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleLobbyConflict(
+            LobbyConflictException exception,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(
+                HttpStatus.CONFLICT,
+                exception.getMessage(),
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(LobbyForbiddenException.class)
+    public ResponseEntity<ApiErrorResponse> handleLobbyForbidden(
+            LobbyForbiddenException exception,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(
+                HttpStatus.FORBIDDEN,
+                exception.getMessage(),
+                request.getRequestURI()
+        );
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse>
     handleValidationException(
