@@ -7,6 +7,7 @@ import com.example.hockeyserver.entity.LobbyStatus;
 import com.example.hockeyserver.entity.User;
 import com.example.hockeyserver.exception.LobbyConflictException;
 import com.example.hockeyserver.exception.LobbyForbiddenException;
+import com.example.hockeyserver.game.GamePlayerRole;
 import com.example.hockeyserver.repository.LobbyRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -164,6 +165,45 @@ class LobbyServiceTest {
                 LobbyConflictException.class,
                 () -> lobbyService.start(1L, "123456", ArenaType.CLASSIC)
         );
+    }
+
+    @Test
+    void getGameRoleShouldReturnGuestForGuestInStartedLobby() {
+        Lobby lobby = new Lobby("123456", user(1L, "Daniel"));
+        lobby.join(user(2L, "Sandor"));
+        lobby.start(ArenaType.ARCTIC);
+        when(lobbyRepository.findByRoomCode("123456"))
+                .thenReturn(Optional.of(lobby));
+
+        GamePlayerRole role = lobbyService.getGameRole(2L, "123456");
+
+        assertEquals(GamePlayerRole.GUEST, role);
+    }
+
+    @Test
+    void getGameRoleShouldRejectLobbyThatHasNotStarted() {
+        Lobby lobby = new Lobby("123456", user(1L, "Daniel"));
+        lobby.join(user(2L, "Sandor"));
+        when(lobbyRepository.findByRoomCode("123456"))
+                .thenReturn(Optional.of(lobby));
+
+        assertThrows(
+                LobbyConflictException.class,
+                () -> lobbyService.getGameRole(1L, "123456")
+        );
+    }
+
+    @Test
+    void closeFinishedGameShouldCloseInGameLobby() {
+        Lobby lobby = new Lobby("123456", user(1L, "Daniel"));
+        lobby.join(user(2L, "Sandor"));
+        lobby.start(ArenaType.ARCTIC);
+        when(lobbyRepository.findByRoomCodeForUpdate("123456"))
+                .thenReturn(Optional.of(lobby));
+
+        lobbyService.closeFinishedGame("123456");
+
+        assertEquals(LobbyStatus.CLOSED, lobby.getStatus());
     }
 
     private User user(Long id, String username) {

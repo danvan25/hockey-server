@@ -8,6 +8,7 @@ import com.example.hockeyserver.entity.User;
 import com.example.hockeyserver.exception.LobbyConflictException;
 import com.example.hockeyserver.exception.LobbyForbiddenException;
 import com.example.hockeyserver.exception.LobbyNotFoundException;
+import com.example.hockeyserver.game.GamePlayerRole;
 import com.example.hockeyserver.repository.LobbyRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -130,6 +131,32 @@ public class LobbyService {
 
         lobby.start(arenaType);
         return new LobbyResponse(lobby);
+    }
+
+    @Transactional(readOnly = true)
+    public GamePlayerRole getGameRole(Long userId, String roomCode) {
+        Lobby lobby = lobbyRepository.findByRoomCode(roomCode)
+                .orElseThrow(LobbyNotFoundException::new);
+
+        ensureMembership(lobby, userId);
+        if (lobby.getStatus() != LobbyStatus.IN_GAME) {
+            throw new LobbyConflictException(
+                    "The lobby is not currently in a game"
+            );
+        }
+
+        return lobby.isHost(userId)
+                ? GamePlayerRole.HOST
+                : GamePlayerRole.GUEST;
+    }
+
+    @Transactional
+    public void closeFinishedGame(String roomCode) {
+        Lobby lobby = lobbyRepository.findByRoomCodeForUpdate(roomCode)
+                .orElse(null);
+        if (lobby != null && lobby.getStatus() == LobbyStatus.IN_GAME) {
+            lobby.close();
+        }
     }
 
     private Lobby findForUpdate(String roomCode) {
