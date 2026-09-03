@@ -212,6 +212,49 @@ class GameWebSocketHandlerTest {
         verify(guest, never()).sendMessage(any(TextMessage.class));
     }
 
+    @Test
+    void hostForfeitShouldAwardGuestAndNotifyBothPlayers()
+            throws Exception {
+        Harness harness = harness();
+        WebSocketSession host = session(
+                1L,
+                "Daniel",
+                GamePlayerRole.HOST
+        );
+        WebSocketSession guest = session(
+                2L,
+                "Sandor",
+                GamePlayerRole.GUEST
+        );
+        harness.handler().afterConnectionEstablished(host);
+        harness.handler().afterConnectionEstablished(guest);
+        clearInvocations(host, guest);
+        when(harness.lobbyService().finishGame(
+                "123456",
+                GamePlayerRole.GUEST
+        )).thenReturn(true);
+
+        harness.handler().handleTextMessage(
+                host,
+                new TextMessage("{\"type\":\"FORFEIT\"}")
+        );
+
+        verify(harness.lobbyService()).finishGame(
+                "123456",
+                GamePlayerRole.GUEST
+        );
+        org.mockito.ArgumentCaptor<TextMessage> hostMessage =
+                org.mockito.ArgumentCaptor.forClass(TextMessage.class);
+        org.mockito.ArgumentCaptor<TextMessage> guestMessage =
+                org.mockito.ArgumentCaptor.forClass(TextMessage.class);
+        verify(host).sendMessage(hostMessage.capture());
+        verify(guest).sendMessage(guestMessage.capture());
+        assertTrue(hostMessage.getValue().getPayload().contains("GAME_OVER"));
+        assertTrue(hostMessage.getValue().getPayload().contains("FORFEIT"));
+        assertTrue(hostMessage.getValue().getPayload().contains("GUEST"));
+        assertTrue(guestMessage.getValue().getPayload().contains("GAME_OVER"));
+    }
+
     private void advancePastCountdown(
             Harness harness,
             WebSocketSession host,

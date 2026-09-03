@@ -200,6 +200,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         if ("HEARTBEAT".equals(clientMessage.type())) {
             return;
         }
+        if ("FORFEIT".equals(clientMessage.type())) {
+            handleForfeit(session, roomCode, players);
+            return;
+        }
         if (!isValidMalletMove(clientMessage)) {
             return;
         }
@@ -243,6 +247,65 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 send(player.getValue(), outgoingMessage);
             }
         }
+    }
+
+    private void handleForfeit(
+            WebSocketSession forfeitingSession,
+            String roomCode,
+            Map<Long, WebSocketSession> players
+    ) {
+        GamePlayerRole forfeitingRole = attribute(
+                forfeitingSession,
+                GameHandshakeInterceptor.PLAYER_ROLE_ATTRIBUTE
+        );
+        GamePlayerRole winnerRole = forfeitingRole == GamePlayerRole.HOST
+                ? GamePlayerRole.GUEST
+                : GamePlayerRole.HOST;
+        if (!lobbyService.finishGame(roomCode, winnerRole)) {
+            return;
+        }
+
+        GameSimulation simulation = simulations.get(roomCode);
+        GameSimulation.Snapshot state = simulation == null
+                ? null
+                : simulation.snapshot();
+        int hostScore = state == null ? 0 : state.hostScore();
+        int guestScore = state == null ? 0 : state.guestScore();
+        long sequence = state == null ? 0L : state.sequence();
+        int round = state == null ? 0 : state.round();
+
+        stopGameLoop(roomCode);
+        cancelRoomCleanup(roomCode);
+        GameSocketMessage gameOver = new GameSocketMessage(
+                GameSocketEventType.GAME_OVER,
+                roomCode,
+                attribute(
+                        forfeitingSession,
+                        GameHandshakeInterceptor.USERNAME_ATTRIBUTE
+                ),
+                forfeitingRole,
+                players.size(),
+                null,
+                null,
+                state == null ? 0.5f : state.puckX(),
+                state == null ? 0.5f : state.puckY(),
+                hostScore,
+                guestScore,
+                0,
+                "FORFEIT",
+                sequence,
+                round,
+                winnerRole
+        );
+        for (WebSocketSession player : players.values()) {
+            try {
+                send(player, gameOver);
+            } catch (IOException ignored) {
+            }
+        }
+        rooms.remove(roomCode, players);
+        lastSeen.remove(roomCode);
+        simulations.remove(roomCode);
     }
 
     private boolean isValidMalletMove(GameClientMessage message) {
