@@ -159,6 +159,28 @@ public class LobbyService {
         }
     }
 
+    @Transactional
+    public boolean finishGame(String roomCode, GamePlayerRole winnerRole) {
+        Lobby lobby = lobbyRepository.findByRoomCodeForUpdate(roomCode)
+                .orElse(null);
+        if (lobby == null
+                || lobby.getStatus() != LobbyStatus.IN_GAME
+                || lobby.getGuest() == null
+                || winnerRole == null) {
+            return false;
+        }
+        User winner = winnerRole == GamePlayerRole.HOST
+                ? lobby.getHost()
+                : lobby.getGuest();
+        User loser = winnerRole == GamePlayerRole.HOST
+                ? lobby.getGuest()
+                : lobby.getHost();
+        winner.increaseWins();
+        loser.increaseLosses();
+        lobby.close();
+        return true;
+    }
+
     private Lobby findForUpdate(String roomCode) {
         return lobbyRepository.findByRoomCodeForUpdate(roomCode)
                 .orElseThrow(LobbyNotFoundException::new);

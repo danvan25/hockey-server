@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class LobbyServiceTest {
@@ -204,6 +205,49 @@ class LobbyServiceTest {
         lobbyService.closeFinishedGame("123456");
 
         assertEquals(LobbyStatus.CLOSED, lobby.getStatus());
+    }
+
+    @Test
+    void finishGameShouldStoreResultOnlyOnce() {
+        User host = user(1L, "Daniel");
+        User guest = user(2L, "Sandor");
+        Lobby lobby = new Lobby("123456", host);
+        lobby.join(guest);
+        lobby.start(ArenaType.ARCTIC);
+        when(lobbyRepository.findByRoomCodeForUpdate("123456"))
+                .thenReturn(Optional.of(lobby));
+
+        assertTrue(lobbyService.finishGame(
+                "123456",
+                GamePlayerRole.HOST
+        ));
+        assertEquals(LobbyStatus.CLOSED, lobby.getStatus());
+        verify(host).increaseWins();
+        verify(guest).increaseLosses();
+
+        assertTrue(!lobbyService.finishGame(
+                "123456",
+                GamePlayerRole.HOST
+        ));
+        verify(host).increaseWins();
+        verify(guest).increaseLosses();
+    }
+
+    @Test
+    void finishGameShouldIgnoreLobbyThatIsNotInGame() {
+        User host = user(1L, "Daniel");
+        User guest = user(2L, "Sandor");
+        Lobby lobby = new Lobby("123456", host);
+        lobby.join(guest);
+        when(lobbyRepository.findByRoomCodeForUpdate("123456"))
+                .thenReturn(Optional.of(lobby));
+
+        assertTrue(!lobbyService.finishGame(
+                "123456",
+                GamePlayerRole.GUEST
+        ));
+        verify(host, never()).increaseLosses();
+        verify(guest, never()).increaseWins();
     }
 
     private User user(Long id, String username) {

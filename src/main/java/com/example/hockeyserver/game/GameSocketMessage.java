@@ -15,6 +15,7 @@ public record GameSocketMessage(
         Integer countdown,
         String gameState,
         Long sequence,
-        Integer round
+        Integer round,
+        GamePlayerRole winnerRole
 ) {
 }

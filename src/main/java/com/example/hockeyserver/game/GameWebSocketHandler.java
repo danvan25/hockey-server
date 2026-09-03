@@ -234,6 +234,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 null,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -287,6 +288,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 attribute(playerSession, GameHandshakeInterceptor.USERNAME_ATTRIBUTE),
                 attribute(playerSession, GameHandshakeInterceptor.PLAYER_ROLE_ATTRIBUTE),
                 playerCount,
+                null,
                 null,
                 null,
                 null,
@@ -352,7 +354,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 state.countdown(),
                 state.gameState(),
                 state.sequence(),
-                state.round()
+                state.round(),
+                state.winnerRole()
         );
         for (WebSocketSession player : players.values()) {
             try {
@@ -361,6 +364,48 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 // A transport error/close callback removes the dead session.
             }
         }
+        if (state.winnerRole() != null) {
+            finishGame(roomCode, players, state);
+        }
+    }
+
+    private void finishGame(
+            String roomCode,
+            Map<Long, WebSocketSession> players,
+            GameSimulation.Snapshot state
+    ) {
+        if (!lobbyService.finishGame(roomCode, state.winnerRole())) {
+            return;
+        }
+        stopGameLoop(roomCode);
+        cancelRoomCleanup(roomCode);
+        GameSocketMessage gameOver = new GameSocketMessage(
+                GameSocketEventType.GAME_OVER,
+                roomCode,
+                null,
+                null,
+                players.size(),
+                null,
+                null,
+                state.puckX(),
+                state.puckY(),
+                state.hostScore(),
+                state.guestScore(),
+                0,
+                "GAME_OVER",
+                state.sequence(),
+                state.round(),
+                state.winnerRole()
+        );
+        for (WebSocketSession player : players.values()) {
+            try {
+                send(player, gameOver);
+            } catch (IOException ignored) {
+            }
+        }
+        rooms.remove(roomCode, players);
+        lastSeen.remove(roomCode);
+        simulations.remove(roomCode);
     }
 
     private boolean disconnectTimedOutPlayers(

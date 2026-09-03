@@ -11,6 +11,7 @@ final class GameSimulation {
     private static final float MAX_PUCK_SPEED = 1600f;
     private static final float DAMPING_PER_SECOND = 0.35f;
     private static final float COUNTDOWN_SECONDS = 3f;
+    static final int WINNING_SCORE = 7;
 
     private float puckX = WIDTH / 2f;
     private float puckY = HEIGHT / 2f;
@@ -29,13 +30,14 @@ final class GameSimulation {
     private float countdownRemaining = COUNTDOWN_SECONDS;
     private long sequence;
     private int round;
+    private GamePlayerRole winnerRole;
 
     synchronized boolean updateMallet(
             GamePlayerRole role,
             float normalizedX,
             float normalizedY
     ) {
-        if (countdownRemaining > 0f) {
+        if (winnerRole != null || countdownRemaining > 0f) {
             return false;
         }
         float minimumX = MARGIN + MALLET_RADIUS;
@@ -62,6 +64,10 @@ final class GameSimulation {
     }
 
     synchronized Snapshot tick(float deltaSeconds) {
+        if (winnerRole != null) {
+            sequence++;
+            return snapshot();
+        }
         if (countdownRemaining > 0f) {
             countdownRemaining = Math.max(0f, countdownRemaining - deltaSeconds);
         } else {
@@ -91,15 +97,44 @@ final class GameSimulation {
                 countdownRemaining > 0f
                         ? Math.max(1, (int) Math.ceil(countdownRemaining))
                         : 0,
-                countdownRemaining > 0f ? "COUNTDOWN" : "PLAYING",
+                winnerRole != null
+                        ? "GAME_OVER"
+                        : countdownRemaining > 0f ? "COUNTDOWN" : "PLAYING",
                 sequence,
-                round
+                round,
+                winnerRole
         );
     }
 
     synchronized void restartAfterReconnect() {
+        if (winnerRole != null) {
+            return;
+        }
         resetRoundPositions();
         round++;
+    }
+
+    synchronized void registerGoal(GamePlayerRole scorer) {
+        if (winnerRole != null) {
+            return;
+        }
+        if (scorer == GamePlayerRole.HOST) {
+            hostScore++;
+            if (hostScore >= WINNING_SCORE) {
+                winnerRole = GamePlayerRole.HOST;
+            }
+        } else {
+            guestScore++;
+            if (guestScore >= WINNING_SCORE) {
+                winnerRole = GamePlayerRole.GUEST;
+            }
+        }
+        if (winnerRole == null) {
+            resetAfterGoal();
+        } else {
+            puckVelocityX = 0f;
+            puckVelocityY = 0f;
+        }
     }
 
     private void collideWithWalls() {
@@ -167,11 +202,9 @@ final class GameSimulation {
             return;
         }
         if (puckY + PUCK_RADIUS < MARGIN) {
-            hostScore++;
-            resetAfterGoal();
+            registerGoal(GamePlayerRole.HOST);
         } else if (puckY - PUCK_RADIUS > HEIGHT - MARGIN) {
-            guestScore++;
-            resetAfterGoal();
+            registerGoal(GamePlayerRole.GUEST);
         }
     }
 
@@ -225,7 +258,8 @@ final class GameSimulation {
             int countdown,
             String gameState,
             long sequence,
-            int round
+            int round,
+            GamePlayerRole winnerRole
     ) {
     }
 }

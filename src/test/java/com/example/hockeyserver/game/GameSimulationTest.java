@@ -62,4 +62,21 @@ class GameSimulationTest {
                 0.5f
         ));
     }
+
+    @Test
+    void seventhGoalShouldFinishGameAndIgnoreFurtherGoals() {
+        GameSimulation simulation = new GameSimulation();
+        for (int goal = 0; goal < GameSimulation.WINNING_SCORE; goal++) {
+            simulation.registerGoal(GamePlayerRole.HOST);
+        }
+
+        GameSimulation.Snapshot finished = simulation.snapshot();
+        assertEquals(GameSimulation.WINNING_SCORE, finished.hostScore());
+        assertEquals("GAME_OVER", finished.gameState());
+        assertEquals(GamePlayerRole.HOST, finished.winnerRole());
+        assertFalse(simulation.updateMallet(GamePlayerRole.HOST, 0.5f, 0.5f));
+
+        simulation.registerGoal(GamePlayerRole.GUEST);
+        assertEquals(0, simulation.snapshot().guestScore());
+    }
 }
