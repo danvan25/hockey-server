@@ -9,6 +9,8 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Map;
@@ -19,6 +21,10 @@ import java.time.Duration;
 
 @Component
 public class GameWebSocketHandler extends TextWebSocketHandler {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            GameWebSocketHandler.class
+    );
 
     private static final Duration RECONNECT_GRACE_PERIOD =
             Duration.ofSeconds(30);
@@ -39,6 +45,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final Map<String, ScheduledFuture<?>> gameTasks =
             new ConcurrentHashMap<>();
     private final Map<String, Map<Long, Instant>> lastSeen =
+            new ConcurrentHashMap<>();
+    private final Map<String, GameInputGuard> inputGuards =
             new ConcurrentHashMap<>();
 
     public GameWebSocketHandler(
@@ -68,6 +76,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 roomCode,
                 ignored -> new ConcurrentHashMap<>()
         ).put(userId, Instant.now());
+        removeInputState(roomCode, userId);
         if (oldSession != null && oldSession.isOpen()) {
             oldSession.close(CloseStatus.NORMAL);
         }
@@ -96,6 +105,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         removeLastSeen(roomCode, userId);
+        removeInputState(roomCode, userId);
 
         if (players.isEmpty()) {
             rooms.remove(roomCode, players);
@@ -148,6 +158,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
         rooms.remove(roomCode);
         lastSeen.remove(roomCode);
+        inputGuards.remove(roomCode);
         simulations.remove(roomCode);
         stopGameLoop(roomCode);
         if (players != null) {
@@ -208,29 +219,41 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
+        float elapsedSeconds = acceptInputAndGetElapsed(
+                roomCode,
+                userId,
+                clientMessage.sequence()
+        );
+        if (elapsedSeconds < 0f) {
+            return;
+        }
+
         GamePlayerRole playerRole = attribute(
                 session,
                 GameHandshakeInterceptor.PLAYER_ROLE_ATTRIBUTE
         );
-        boolean accepted = simulations
-                .computeIfAbsent(roomCode, ignored -> new GameSimulation())
-                .updateMallet(
+        GameSimulation simulation = simulations
+                .computeIfAbsent(roomCode, ignored -> new GameSimulation());
+        boolean accepted = simulation.updateMallet(
                         playerRole,
                         clientMessage.x(),
-                        clientMessage.y()
+                        clientMessage.y(),
+                        elapsedSeconds
                 );
         if (!accepted) {
             return;
         }
 
+        GameSimulation.MalletPosition authoritativePosition =
+                simulation.malletPosition(playerRole);
         GameSocketMessage outgoingMessage = new GameSocketMessage(
                 GameSocketEventType.MALLET_MOVE,
                 roomCode,
                 attribute(session, GameHandshakeInterceptor.USERNAME_ATTRIBUTE),
                 attribute(session, GameHandshakeInterceptor.PLAYER_ROLE_ATTRIBUTE),
                 players.size(),
-                clientMessage.x(),
-                clientMessage.y(),
+                authoritativePosition.x(),
+                authoritativePosition.y(),
                 null,
                 null,
                 null,
@@ -305,12 +328,15 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
         rooms.remove(roomCode, players);
         lastSeen.remove(roomCode);
+        inputGuards.remove(roomCode);
         simulations.remove(roomCode);
     }
 
     private boolean isValidMalletMove(GameClientMessage message) {
         return message != null
                 && "MALLET_MOVE".equals(message.type())
+                && message.sequence() != null
+                && message.sequence() > 0L
                 && message.x() != null
                 && message.y() != null
                 && Float.isFinite(message.x())
@@ -319,6 +345,23 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 && message.x() <= 1f
                 && message.y() >= 0f
                 && message.y() <= 1f;
+    }
+
+    private float acceptInputAndGetElapsed(
+            String roomCode,
+            Long userId,
+            long sequence
+    ) {
+        return inputGuards
+                .computeIfAbsent(roomCode, ignored -> new GameInputGuard())
+                .accept(userId, sequence, Instant.now());
+    }
+
+    private void removeInputState(String roomCode, Long userId) {
+        GameInputGuard inputGuard = inputGuards.get(roomCode);
+        if (inputGuard != null) {
+            inputGuard.remove(userId);
+        }
     }
 
     private void notifyPlayersAboutOpponent(
@@ -376,11 +419,23 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
         gameTasks.computeIfAbsent(roomCode, ignored -> {
             ScheduledFuture<?> task = cleanupTaskScheduler.scheduleAtFixedRate(
-                    () -> broadcastGameState(roomCode),
+                    () -> runGameTickSafely(roomCode),
                     GAME_TICK_INTERVAL
             );
             return task;
         });
+    }
+
+    private void runGameTickSafely(String roomCode) {
+        try {
+            broadcastGameState(roomCode);
+        } catch (RuntimeException exception) {
+            LOGGER.error(
+                    "Game tick failed for room {}. The loop will continue.",
+                    roomCode,
+                    exception
+            );
+        }
     }
 
     private void stopGameLoop(String roomCode) {
@@ -468,6 +523,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
         rooms.remove(roomCode, players);
         lastSeen.remove(roomCode);
+        inputGuards.remove(roomCode);
         simulations.remove(roomCode);
     }
 
@@ -505,6 +561,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         removeLastSeen(roomCode, userId);
+        removeInputState(roomCode, userId);
         stopGameLoop(roomCode);
         scheduleRoomCleanup(roomCode);
         GameSocketMessage disconnected = messageFor(

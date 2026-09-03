@@ -79,4 +79,34 @@ class GameSimulationTest {
         simulation.registerGoal(GamePlayerRole.GUEST);
         assertEquals(0, simulation.snapshot().guestScore());
     }
+
+    @Test
+    void impossibleMalletJumpShouldBeLimitedByServer() {
+        GameSimulation simulation = new GameSimulation();
+        for (int index = 0; index < 91; index++) {
+            simulation.tick(0.033f);
+        }
+
+        assertTrue(simulation.updateMallet(
+                GamePlayerRole.HOST,
+                0f,
+                0f,
+                0.001f
+        ));
+
+        GameSimulation.MalletPosition position =
+                simulation.malletPosition(GamePlayerRole.HOST);
+        assertTrue(position.x() > 0.49f);
+        assertTrue(position.y() > 0.49f);
+    }
+
+    @Test
+    void oversizedTickShouldBeClamped() {
+        GameSimulation simulation = new GameSimulation();
+
+        simulation.tick(10f);
+
+        assertEquals(3, simulation.snapshot().countdown());
+        assertEquals("COUNTDOWN", simulation.snapshot().gameState());
+    }
 }

@@ -9,8 +9,10 @@ final class GameSimulation {
     private static final float PUCK_RADIUS = 38f;
     private static final float MALLET_RADIUS = 65f;
     private static final float MAX_PUCK_SPEED = 1600f;
+    private static final float MAX_MALLET_SPEED = 2400f;
     private static final float DAMPING_PER_SECOND = 0.35f;
     private static final float COUNTDOWN_SECONDS = 3f;
+    private static final float MAX_TICK_DELTA_SECONDS = 0.05f;
     static final int WINNING_SCORE = 7;
 
     private float puckX = WIDTH / 2f;
@@ -37,6 +39,15 @@ final class GameSimulation {
             float normalizedX,
             float normalizedY
     ) {
+        return updateMallet(role, normalizedX, normalizedY, 1f);
+    }
+
+    synchronized boolean updateMallet(
+            GamePlayerRole role,
+            float normalizedX,
+            float normalizedY,
+            float elapsedSeconds
+    ) {
         if (winnerRole != null || countdownRemaining > 0f) {
             return false;
         }
@@ -46,8 +57,19 @@ final class GameSimulation {
         float halfMaximumY = HEIGHT - MARGIN - MALLET_RADIUS;
         float localX = lerp(minimumX, maximumX, normalizedX);
         float localY = lerp(halfMinimumY, halfMaximumY, normalizedY);
+        float maximumDistance = MAX_MALLET_SPEED
+                * Math.max(0.001f, Math.min(elapsedSeconds, 0.1f));
 
         if (role == GamePlayerRole.HOST) {
+            float[] limited = limitMovement(
+                    hostX,
+                    hostY,
+                    localX,
+                    localY,
+                    maximumDistance
+            );
+            localX = limited[0];
+            localY = limited[1];
             hostVelocityX = localX - hostX;
             hostVelocityY = localY - hostY;
             hostX = localX;
@@ -55,6 +77,15 @@ final class GameSimulation {
         } else {
             float globalX = WIDTH - localX;
             float globalY = HEIGHT - localY;
+            float[] limited = limitMovement(
+                    guestX,
+                    guestY,
+                    globalX,
+                    globalY,
+                    maximumDistance
+            );
+            globalX = limited[0];
+            globalY = limited[1];
             guestVelocityX = globalX - guestX;
             guestVelocityY = globalY - guestY;
             guestX = globalX;
@@ -63,7 +94,41 @@ final class GameSimulation {
         return true;
     }
 
+    synchronized MalletPosition malletPosition(GamePlayerRole role) {
+        float minimumX = MARGIN + MALLET_RADIUS;
+        float maximumX = WIDTH - MARGIN - MALLET_RADIUS;
+        float minimumY = HEIGHT / 2f + MALLET_RADIUS;
+        float maximumY = HEIGHT - MARGIN - MALLET_RADIUS;
+        float localX = role == GamePlayerRole.HOST ? hostX : WIDTH - guestX;
+        float localY = role == GamePlayerRole.HOST ? hostY : HEIGHT - guestY;
+        return new MalletPosition(
+                (localX - minimumX) / (maximumX - minimumX),
+                (localY - minimumY) / (maximumY - minimumY)
+        );
+    }
+
+    private float[] limitMovement(
+            float startX,
+            float startY,
+            float targetX,
+            float targetY,
+            float maximumDistance
+    ) {
+        float dx = targetX - startX;
+        float dy = targetY - startY;
+        float distance = (float) Math.sqrt(dx * dx + dy * dy);
+        if (distance <= maximumDistance || distance < 0.0001f) {
+            return new float[]{targetX, targetY};
+        }
+        float scale = maximumDistance / distance;
+        return new float[]{startX + dx * scale, startY + dy * scale};
+    }
+
     synchronized Snapshot tick(float deltaSeconds) {
+        deltaSeconds = Math.max(
+                0f,
+                Math.min(deltaSeconds, MAX_TICK_DELTA_SECONDS)
+        );
         if (winnerRole != null) {
             sequence++;
             return snapshot();
@@ -261,5 +326,8 @@ final class GameSimulation {
             int round,
             GamePlayerRole winnerRole
     ) {
+    }
+
+    record MalletPosition(float x, float y) {
     }
 }

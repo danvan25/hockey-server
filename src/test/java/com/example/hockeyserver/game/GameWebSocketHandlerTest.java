@@ -136,7 +136,8 @@ class GameWebSocketHandlerTest {
         handler.handleTextMessage(
                 host,
                 new TextMessage(
-                        "{\"type\":\"MALLET_MOVE\",\"x\":0.25,\"y\":0.75}"
+                        "{\"type\":\"MALLET_MOVE\",\"x\":0.45,"
+                                + "\"y\":0.55,\"sequence\":1}"
                 )
         );
 
@@ -144,9 +145,30 @@ class GameWebSocketHandlerTest {
                 org.mockito.ArgumentCaptor.forClass(TextMessage.class);
         verify(guest).sendMessage(forwarded.capture());
         assertTrue(forwarded.getValue().getPayload().contains("MALLET_MOVE"));
-        assertTrue(forwarded.getValue().getPayload().contains("0.25"));
-        assertTrue(forwarded.getValue().getPayload().contains("0.75"));
+        assertTrue(forwarded.getValue().getPayload().contains("0.45"));
+        assertTrue(forwarded.getValue().getPayload().contains("0.55"));
         verify(host, never()).sendMessage(any(TextMessage.class));
+    }
+
+    @Test
+    void repeatedMalletSequenceShouldBeDiscarded() throws Exception {
+        Harness harness = harness();
+        WebSocketSession host = session(1L, "Daniel", GamePlayerRole.HOST);
+        WebSocketSession guest = session(2L, "Sandor", GamePlayerRole.GUEST);
+        harness.handler().afterConnectionEstablished(host);
+        harness.handler().afterConnectionEstablished(guest);
+        advancePastCountdown(harness, host, guest);
+
+        TextMessage movement = new TextMessage(
+                "{\"type\":\"MALLET_MOVE\",\"x\":0.45,"
+                        + "\"y\":0.55,\"sequence\":8}"
+        );
+        harness.handler().handleTextMessage(host, movement);
+        clearInvocations(host, guest);
+
+        harness.handler().handleTextMessage(host, movement);
+
+        verify(guest, never()).sendMessage(any(TextMessage.class));
     }
 
     @Test
