@@ -11,8 +11,9 @@ import com.example.hockeyserver.service.LobbyService;
 import java.util.HashMap;
 import java.util.Map;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.concurrent.ScheduledFuture;
-import static org.mockito.Mockito.doReturn;
+
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -20,6 +21,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doReturn;
 
 class GameWebSocketHandlerTest {
 
@@ -110,6 +114,121 @@ class GameWebSocketHandlerTest {
         verify(harness.lobbyService()).closeFinishedGame("123456");
     }
 
+    @Test
+    void malletMoveShouldBeForwardedOnlyToOpponent() throws Exception {
+        Harness harness = harness();
+        GameWebSocketHandler handler = harness.handler();
+        WebSocketSession host = session(
+                1L,
+                "Daniel",
+                GamePlayerRole.HOST
+        );
+        WebSocketSession guest = session(
+                2L,
+                "Sandor",
+                GamePlayerRole.GUEST
+        );
+        handler.afterConnectionEstablished(host);
+        handler.afterConnectionEstablished(guest);
+        advancePastCountdown(harness, host, guest);
+        clearInvocations(host, guest);
+
+        handler.handleTextMessage(
+                host,
+                new TextMessage(
+                        "{\"type\":\"MALLET_MOVE\",\"x\":0.25,\"y\":0.75}"
+                )
+        );
+
+        org.mockito.ArgumentCaptor<TextMessage> forwarded =
+                org.mockito.ArgumentCaptor.forClass(TextMessage.class);
+        verify(guest).sendMessage(forwarded.capture());
+        assertTrue(forwarded.getValue().getPayload().contains("MALLET_MOVE"));
+        assertTrue(forwarded.getValue().getPayload().contains("0.25"));
+        assertTrue(forwarded.getValue().getPayload().contains("0.75"));
+        verify(host, never()).sendMessage(any(TextMessage.class));
+    }
+
+    @Test
+    void gameStateShouldBeBroadcastToBothPlayers() throws Exception {
+        Harness harness = harness();
+        WebSocketSession host = session(
+                1L,
+                "Daniel",
+                GamePlayerRole.HOST
+        );
+        WebSocketSession guest = session(
+                2L,
+                "Sandor",
+                GamePlayerRole.GUEST
+        );
+        harness.handler().afterConnectionEstablished(host);
+        harness.handler().afterConnectionEstablished(guest);
+        clearInvocations(host, guest);
+
+        org.mockito.ArgumentCaptor<Runnable> gameTick =
+                org.mockito.ArgumentCaptor.forClass(Runnable.class);
+        verify(harness.scheduler()).scheduleAtFixedRate(
+                gameTick.capture(),
+                any(Duration.class)
+        );
+        gameTick.getValue().run();
+
+        org.mockito.ArgumentCaptor<TextMessage> hostMessage =
+                org.mockito.ArgumentCaptor.forClass(TextMessage.class);
+        verify(host).sendMessage(hostMessage.capture());
+        verify(guest).sendMessage(any(TextMessage.class));
+        assertTrue(hostMessage.getValue().getPayload().contains("GAME_STATE"));
+        assertTrue(hostMessage.getValue().getPayload().contains("puckX"));
+        assertTrue(hostMessage.getValue().getPayload().contains("hostScore"));
+        assertTrue(hostMessage.getValue().getPayload().contains("countdown"));
+        assertTrue(hostMessage.getValue().getPayload().contains("sequence"));
+        assertTrue(hostMessage.getValue().getPayload().contains("round"));
+    }
+
+    @Test
+    void heartbeatShouldNotBeForwardedToOpponent() throws Exception {
+        Harness harness = harness();
+        WebSocketSession host = session(
+                1L,
+                "Daniel",
+                GamePlayerRole.HOST
+        );
+        WebSocketSession guest = session(
+                2L,
+                "Sandor",
+                GamePlayerRole.GUEST
+        );
+        harness.handler().afterConnectionEstablished(host);
+        harness.handler().afterConnectionEstablished(guest);
+        clearInvocations(host, guest);
+
+        harness.handler().handleTextMessage(
+                host,
+                new TextMessage("{\"type\":\"HEARTBEAT\"}")
+        );
+
+        verify(host, never()).sendMessage(any(TextMessage.class));
+        verify(guest, never()).sendMessage(any(TextMessage.class));
+    }
+
+    private void advancePastCountdown(
+            Harness harness,
+            WebSocketSession host,
+            WebSocketSession guest
+    ) throws Exception {
+        org.mockito.ArgumentCaptor<Runnable> gameTick =
+                org.mockito.ArgumentCaptor.forClass(Runnable.class);
+        verify(harness.scheduler()).scheduleAtFixedRate(
+                gameTick.capture(),
+                any(Duration.class)
+        );
+        for (int index = 0; index < 91; index++) {
+            gameTick.getValue().run();
+        }
+        clearInvocations(host, guest);
+    }
+
     private Harness harness() {
         LobbyService lobbyService = mock(LobbyService.class);
         TaskScheduler scheduler = mock(TaskScheduler.class);
@@ -119,7 +238,14 @@ class GameWebSocketHandlerTest {
                 .when(scheduler)
                 .schedule(
                         any(Runnable.class),
-                        any(Instant.class));
+                        any(Instant.class)
+                );
+        doReturn(scheduledFuture)
+                .when(scheduler)
+                .scheduleAtFixedRate(
+                        any(Runnable.class),
+                        any(Duration.class)
+                );
         return new Harness(
                 new GameWebSocketHandler(
                         new ObjectMapper(),

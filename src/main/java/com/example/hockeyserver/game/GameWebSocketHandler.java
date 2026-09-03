@@ -20,8 +20,12 @@ import java.time.Duration;
 @Component
 public class GameWebSocketHandler extends TextWebSocketHandler {
 
-    private static final Duration EMPTY_ROOM_GRACE_PERIOD =
-            Duration.ofSeconds(10);
+    private static final Duration RECONNECT_GRACE_PERIOD =
+            Duration.ofSeconds(30);
+    private static final Duration HEARTBEAT_TIMEOUT =
+            Duration.ofSeconds(4);
+    private static final Duration GAME_TICK_INTERVAL =
+            Duration.ofMillis(33);
 
     private final ObjectMapper objectMapper;
     private final LobbyService lobbyService;
@@ -29,6 +33,12 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final Map<String, Map<Long, WebSocketSession>> rooms =
             new ConcurrentHashMap<>();
     private final Map<String, ScheduledFuture<?>> cleanupTasks =
+            new ConcurrentHashMap<>();
+    private final Map<String, GameSimulation> simulations =
+            new ConcurrentHashMap<>();
+    private final Map<String, ScheduledFuture<?>> gameTasks =
+            new ConcurrentHashMap<>();
+    private final Map<String, Map<Long, Instant>> lastSeen =
             new ConcurrentHashMap<>();
 
     public GameWebSocketHandler(
@@ -54,6 +64,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 ignored -> new ConcurrentHashMap<>()
         );
         WebSocketSession oldSession = players.put(userId, session);
+        lastSeen.computeIfAbsent(
+                roomCode,
+                ignored -> new ConcurrentHashMap<>()
+        ).put(userId, Instant.now());
         if (oldSession != null && oldSession.isOpen()) {
             oldSession.close(CloseStatus.NORMAL);
         }
@@ -66,6 +80,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         if (players.size() == 2) {
             notifyPlayersAboutOpponent(players);
+            startGameLoop(roomCode);
         }
     }
 
@@ -80,12 +95,17 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         if (players == null || !players.remove(userId, session)) {
             return;
         }
+        removeLastSeen(roomCode, userId);
 
         if (players.isEmpty()) {
             rooms.remove(roomCode, players);
+            stopGameLoop(roomCode);
             scheduleRoomCleanup(roomCode);
             return;
         }
+
+        stopGameLoop(roomCode);
+        scheduleRoomCleanup(roomCode);
 
         GameSocketMessage message = messageFor(
                 GameSocketEventType.OPPONENT_DISCONNECTED,
@@ -100,7 +120,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private void scheduleRoomCleanup(String roomCode) {
         ScheduledFuture<?> newTask = cleanupTaskScheduler.schedule(
                 () -> closeRoomIfStillEmpty(roomCode),
-                Instant.now().plus(EMPTY_ROOM_GRACE_PERIOD)
+                Instant.now().plus(RECONNECT_GRACE_PERIOD)
         );
         if (newTask != null) {
             ScheduledFuture<?> oldTask = cleanupTasks.put(
@@ -123,9 +143,19 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private void closeRoomIfStillEmpty(String roomCode) {
         cleanupTasks.remove(roomCode);
         Map<Long, WebSocketSession> players = rooms.get(roomCode);
-        if (players == null || players.isEmpty()) {
-            lobbyService.closeFinishedGame(roomCode);
+        if (players != null && players.size() == 2) {
+            return;
         }
+        rooms.remove(roomCode);
+        lastSeen.remove(roomCode);
+        simulations.remove(roomCode);
+        stopGameLoop(roomCode);
+        if (players != null) {
+            for (WebSocketSession player : players.values()) {
+                closeQuietly(player);
+            }
+        }
+        lobbyService.closeFinishedGame(roomCode);
     }
 
     @Override
@@ -136,6 +166,95 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         if (session.isOpen()) {
             session.close(CloseStatus.SERVER_ERROR);
         }
+    }
+
+    @Override
+    protected void handleTextMessage(
+            WebSocketSession session,
+            TextMessage message
+    ) throws Exception {
+        GameClientMessage clientMessage;
+        try {
+            clientMessage = objectMapper.readValue(
+                    message.getPayload(),
+                    GameClientMessage.class
+            );
+        } catch (Exception exception) {
+            return;
+        }
+
+        String roomCode = attribute(
+                session,
+                GameHandshakeInterceptor.ROOM_CODE_ATTRIBUTE
+        );
+        Long userId = attribute(
+                session,
+                GameHandshakeInterceptor.USER_ID_ATTRIBUTE
+        );
+        Map<Long, WebSocketSession> players = rooms.get(roomCode);
+        if (players == null || players.get(userId) != session) {
+            return;
+        }
+
+        markSeen(roomCode, userId);
+        if ("HEARTBEAT".equals(clientMessage.type())) {
+            return;
+        }
+        if (!isValidMalletMove(clientMessage)) {
+            return;
+        }
+
+        GamePlayerRole playerRole = attribute(
+                session,
+                GameHandshakeInterceptor.PLAYER_ROLE_ATTRIBUTE
+        );
+        boolean accepted = simulations
+                .computeIfAbsent(roomCode, ignored -> new GameSimulation())
+                .updateMallet(
+                        playerRole,
+                        clientMessage.x(),
+                        clientMessage.y()
+                );
+        if (!accepted) {
+            return;
+        }
+
+        GameSocketMessage outgoingMessage = new GameSocketMessage(
+                GameSocketEventType.MALLET_MOVE,
+                roomCode,
+                attribute(session, GameHandshakeInterceptor.USERNAME_ATTRIBUTE),
+                attribute(session, GameHandshakeInterceptor.PLAYER_ROLE_ATTRIBUTE),
+                players.size(),
+                clientMessage.x(),
+                clientMessage.y(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        for (Map.Entry<Long, WebSocketSession> player : players.entrySet()) {
+            if (!player.getKey().equals(userId)) {
+                send(player.getValue(), outgoingMessage);
+            }
+        }
+    }
+
+    private boolean isValidMalletMove(GameClientMessage message) {
+        return message != null
+                && "MALLET_MOVE".equals(message.type())
+                && message.x() != null
+                && message.y() != null
+                && Float.isFinite(message.x())
+                && Float.isFinite(message.y())
+                && message.x() >= 0f
+                && message.x() <= 1f
+                && message.y() >= 0f
+                && message.y() <= 1f;
     }
 
     private void notifyPlayersAboutOpponent(
@@ -167,8 +286,158 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 attribute(playerSession, GameHandshakeInterceptor.ROOM_CODE_ATTRIBUTE),
                 attribute(playerSession, GameHandshakeInterceptor.USERNAME_ATTRIBUTE),
                 attribute(playerSession, GameHandshakeInterceptor.PLAYER_ROLE_ATTRIBUTE),
-                playerCount
+                playerCount,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
         );
+    }
+
+    private void startGameLoop(String roomCode) {
+        GameSimulation newSimulation = new GameSimulation();
+        GameSimulation simulation = simulations.putIfAbsent(
+                roomCode,
+                newSimulation
+        );
+        if (simulation != null) {
+            simulation.restartAfterReconnect();
+        }
+        gameTasks.computeIfAbsent(roomCode, ignored -> {
+            ScheduledFuture<?> task = cleanupTaskScheduler.scheduleAtFixedRate(
+                    () -> broadcastGameState(roomCode),
+                    GAME_TICK_INTERVAL
+            );
+            return task;
+        });
+    }
+
+    private void stopGameLoop(String roomCode) {
+        ScheduledFuture<?> task = gameTasks.remove(roomCode);
+        if (task != null) {
+            task.cancel(false);
+        }
+    }
+
+    private void broadcastGameState(String roomCode) {
+        Map<Long, WebSocketSession> players = rooms.get(roomCode);
+        GameSimulation simulation = simulations.get(roomCode);
+        if (players == null || players.size() != 2 || simulation == null) {
+            return;
+        }
+        if (disconnectTimedOutPlayers(roomCode, players)) {
+            return;
+        }
+        GameSimulation.Snapshot state = simulation.tick(
+                GAME_TICK_INTERVAL.toMillis() / 1000f
+        );
+        GameSocketMessage message = new GameSocketMessage(
+                GameSocketEventType.GAME_STATE,
+                roomCode,
+                null,
+                null,
+                players.size(),
+                null,
+                null,
+                state.puckX(),
+                state.puckY(),
+                state.hostScore(),
+                state.guestScore(),
+                state.countdown(),
+                state.gameState(),
+                state.sequence(),
+                state.round()
+        );
+        for (WebSocketSession player : players.values()) {
+            try {
+                send(player, message);
+            } catch (IOException ignored) {
+                // A transport error/close callback removes the dead session.
+            }
+        }
+    }
+
+    private boolean disconnectTimedOutPlayers(
+            String roomCode,
+            Map<Long, WebSocketSession> players
+    ) {
+        Map<Long, Instant> roomLastSeen = lastSeen.get(roomCode);
+        Instant deadline = Instant.now().minus(HEARTBEAT_TIMEOUT);
+        if (roomLastSeen == null) {
+            return false;
+        }
+        for (Map.Entry<Long, WebSocketSession> player
+                : players.entrySet()) {
+            Instant seen = roomLastSeen.get(player.getKey());
+            if (seen != null && seen.isBefore(deadline)) {
+                disconnectPlayer(
+                        roomCode,
+                        player.getKey(),
+                        player.getValue()
+                );
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void disconnectPlayer(
+            String roomCode,
+            Long userId,
+            WebSocketSession staleSession
+    ) {
+        Map<Long, WebSocketSession> players = rooms.get(roomCode);
+        if (players == null || !players.remove(userId, staleSession)) {
+            return;
+        }
+        removeLastSeen(roomCode, userId);
+        stopGameLoop(roomCode);
+        scheduleRoomCleanup(roomCode);
+        GameSocketMessage disconnected = messageFor(
+                GameSocketEventType.OPPONENT_DISCONNECTED,
+                staleSession,
+                players.size()
+        );
+        for (WebSocketSession remaining : players.values()) {
+            try {
+                send(remaining, disconnected);
+            } catch (IOException ignored) {
+            }
+        }
+        closeQuietly(staleSession);
+    }
+
+    private void markSeen(String roomCode, Long userId) {
+        lastSeen.computeIfAbsent(
+                roomCode,
+                ignored -> new ConcurrentHashMap<>()
+        ).put(userId, Instant.now());
+    }
+
+    private void removeLastSeen(String roomCode, Long userId) {
+        Map<Long, Instant> roomLastSeen = lastSeen.get(roomCode);
+        if (roomLastSeen == null) {
+            return;
+        }
+        roomLastSeen.remove(userId);
+        if (roomLastSeen.isEmpty()) {
+            lastSeen.remove(roomCode, roomLastSeen);
+        }
+    }
+
+    private void closeQuietly(WebSocketSession session) {
+        try {
+            if (session.isOpen()) {
+                session.close(CloseStatus.SERVER_ERROR);
+            }
+        } catch (IOException ignored) {
+        }
     }
 
     private void send(

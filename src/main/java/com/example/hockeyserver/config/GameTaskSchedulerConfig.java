@@ -11,8 +11,8 @@ public class GameTaskSchedulerConfig {
     @Bean
     public TaskScheduler gameCleanupTaskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(1);
-        scheduler.setThreadNamePrefix("game-cleanup-");
+        scheduler.setPoolSize(4);
+        scheduler.setThreadNamePrefix("game-task-");
         scheduler.setDaemon(true);
         return scheduler;
     }
