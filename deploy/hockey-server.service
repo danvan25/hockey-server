@@ -1,0 +1,25 @@
+[Unit]
+Description=Hockey multiplayer backend
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hockey-server
+Group=hockey-server
+WorkingDirectory=/opt/hockey-server
+EnvironmentFile=/etc/hockey-server/hockey-server.env
+ExecStart=/usr/bin/java $JAVA_OPTS -jar /opt/hockey-server/hockey-server.jar --spring.profiles.active=prod
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+
