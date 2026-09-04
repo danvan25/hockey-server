@@ -211,6 +211,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         if ("HEARTBEAT".equals(clientMessage.type())) {
             return;
         }
+        if ("PING".equals(clientMessage.type())) {
+            sendPong(session, players.size(), clientMessage.sequence());
+            return;
+        }
         if ("FORFEIT".equals(clientMessage.type())) {
             handleForfeit(session, roomCode, players);
             return;
@@ -270,6 +274,34 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 send(player.getValue(), outgoingMessage);
             }
         }
+    }
+
+    private void sendPong(
+            WebSocketSession session,
+            int playerCount,
+            Long pingSequence
+    ) throws IOException {
+        if (pingSequence == null || pingSequence <= 0L) {
+            return;
+        }
+        send(session, new GameSocketMessage(
+                GameSocketEventType.PONG,
+                attribute(session, GameHandshakeInterceptor.ROOM_CODE_ATTRIBUTE),
+                null,
+                attribute(session, GameHandshakeInterceptor.PLAYER_ROLE_ATTRIBUTE),
+                playerCount,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                pingSequence,
+                null,
+                null
+        ));
     }
 
     private void handleForfeit(

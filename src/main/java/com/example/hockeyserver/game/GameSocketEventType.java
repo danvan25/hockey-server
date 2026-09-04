@@ -6,5 +6,6 @@ public enum GameSocketEventType {
     OPPONENT_DISCONNECTED,
     MALLET_MOVE,
     GAME_STATE,
-    GAME_OVER
+    GAME_OVER,
+    PONG
 }

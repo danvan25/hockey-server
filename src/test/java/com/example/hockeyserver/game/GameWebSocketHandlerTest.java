@@ -235,6 +235,29 @@ class GameWebSocketHandlerTest {
     }
 
     @Test
+    void pingShouldReturnPongOnlyToSenderWithSameSequence()
+            throws Exception {
+        Harness harness = harness();
+        WebSocketSession host = session(1L, "Daniel", GamePlayerRole.HOST);
+        WebSocketSession guest = session(2L, "Sandor", GamePlayerRole.GUEST);
+        harness.handler().afterConnectionEstablished(host);
+        harness.handler().afterConnectionEstablished(guest);
+        clearInvocations(host, guest);
+
+        harness.handler().handleTextMessage(
+                host,
+                new TextMessage("{\"type\":\"PING\",\"sequence\":42}")
+        );
+
+        org.mockito.ArgumentCaptor<TextMessage> pong =
+                org.mockito.ArgumentCaptor.forClass(TextMessage.class);
+        verify(host).sendMessage(pong.capture());
+        verify(guest, never()).sendMessage(any(TextMessage.class));
+        assertTrue(pong.getValue().getPayload().contains("PONG"));
+        assertTrue(pong.getValue().getPayload().contains("42"));
+    }
+
+    @Test
     void hostForfeitShouldAwardGuestAndNotifyBothPlayers()
             throws Exception {
         Harness harness = harness();
